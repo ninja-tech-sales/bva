@@ -1,5 +1,5 @@
 # Developed by N.A.Pearson, HPE OpsRamp
-# v1.2 - June 2025 - Added Implementation Delay Feature & Corrected Alert Cost Calculations
+# v1.3 - June 2025 - Added Configurable Working Hours & Corrected Alert Cost Calculations
 
 import streamlit as st
 import numpy as np
@@ -93,6 +93,47 @@ st.sidebar.caption("📌 Industry templates provide baseline values for estimati
 # --- Currency Selection ---
 currency_symbol = st.sidebar.selectbox("Currency", ["$", "€", "£", "Kč"], key="currency")
 
+# --- Working Hours Configuration ---
+st.sidebar.subheader("⏰ Working Hours Configuration")
+hours_per_day = st.sidebar.number_input(
+    "Working Hours per Day", 
+    value=8.0, 
+    min_value=1.0, 
+    max_value=24.0,
+    step=0.5,
+    key="hours_per_day",
+    help="Standard working hours per day for your FTEs"
+)
+days_per_week = st.sidebar.number_input(
+    "Working Days per Week", 
+    value=5, 
+    min_value=1, 
+    max_value=7,
+    key="days_per_week",
+    help="Standard working days per week"
+)
+weeks_per_year = st.sidebar.number_input(
+    "Working Weeks per Year", 
+    value=52, 
+    min_value=1, 
+    max_value=52,
+    key="weeks_per_year",
+    help="Total weeks worked per year"
+)
+holiday_sick_days = st.sidebar.number_input(
+    "Holiday + Sick Days per Year", 
+    value=25, 
+    min_value=0, 
+    max_value=100,
+    key="holiday_sick_days",
+    help="Total days off per year (holidays, vacation, sick leave)"
+)
+
+# Calculate and display total working hours
+total_working_days = (weeks_per_year * days_per_week) - holiday_sick_days
+working_hours_per_fte_per_year = total_working_days * hours_per_day
+st.sidebar.info(f"**Calculated: {working_hours_per_fte_per_year:,.0f} working hours per FTE per year**")
+
 # --- ALERT INPUTS ---
 st.sidebar.subheader("🚨 Alert Management")
 alert_volume = st.sidebar.number_input(
@@ -169,7 +210,7 @@ major_incident_volume = st.sidebar.number_input(
     key="major_incident_volume"
 )
 avg_major_incident_cost = st.sidebar.number_input(
-    "Average Major Incident Cost per Hour to the Customer (Downtime)", 
+    "Average Major Incident Cost per Hour", 
     value=0,
     key="avg_major_incident_cost"
 )
@@ -268,24 +309,24 @@ if nbv_model == "Risk-Adjusted (user-defined buffer)":
         key="risk_buffer"
     ) / 100
 
-# --- CORRECTED CALCULATIONS ---
+# --- CORRECTED CALCULATIONS WITH CONFIGURABLE WORKING HOURS ---
 
 # Function to calculate alert costs based on FTE time allocation
-def calculate_alert_costs(alert_volume, alert_ftes, avg_alert_triage_time, avg_salary_per_year):
+def calculate_alert_costs(alert_volume, alert_ftes, avg_alert_triage_time, avg_salary_per_year, 
+                         hours_per_day, days_per_week, weeks_per_year, holiday_sick_days):
     """
     Calculate the true cost per alert based on FTE time allocation
     """
     if alert_volume == 0 or alert_ftes == 0:
-        return 0, 0, 0
+        return 0, 0, 0, 0
     
     # Calculate total time spent on alerts per year (in hours)
     total_alert_time_minutes_per_year = alert_volume * avg_alert_triage_time
     total_alert_time_hours_per_year = total_alert_time_minutes_per_year / 60
     
-    # Calculate available working hours per FTE per year
-    # Assuming: 8 hours/day, 5 days/week, 52 weeks/year, minus 25 days holiday/sick
-    working_days_per_year = (52 * 5) - 25  # 235 working days
-    working_hours_per_fte_per_year = working_days_per_year * 8  # 1,880 hours
+    # Calculate available working hours per FTE per year (configurable)
+    total_working_days = (weeks_per_year * days_per_week) - holiday_sick_days
+    working_hours_per_fte_per_year = total_working_days * hours_per_day
     
     # Calculate total available FTE hours
     total_available_fte_hours = alert_ftes * working_hours_per_fte_per_year
@@ -300,19 +341,20 @@ def calculate_alert_costs(alert_volume, alert_ftes, avg_alert_triage_time, avg_s
     total_alert_handling_cost = total_fte_cost * fte_time_percentage_on_alerts
     cost_per_alert = total_alert_handling_cost / alert_volume if alert_volume > 0 else 0
     
-    return cost_per_alert, total_alert_handling_cost, fte_time_percentage_on_alerts
+    return cost_per_alert, total_alert_handling_cost, fte_time_percentage_on_alerts, working_hours_per_fte_per_year
 
 # Function to calculate incident costs based on FTE time allocation
-def calculate_incident_costs(incident_volume, incident_ftes, avg_incident_triage_time, avg_salary_per_year):
+def calculate_incident_costs(incident_volume, incident_ftes, avg_incident_triage_time, avg_salary_per_year,
+                           hours_per_day, days_per_week, weeks_per_year, holiday_sick_days):
     """Calculate the true cost per incident based on FTE time allocation"""
     if incident_volume == 0 or incident_ftes == 0:
-        return 0, 0, 0
+        return 0, 0, 0, 0
     
     total_incident_time_minutes_per_year = incident_volume * avg_incident_triage_time
     total_incident_time_hours_per_year = total_incident_time_minutes_per_year / 60
     
-    working_days_per_year = (52 * 5) - 25  # 235 working days
-    working_hours_per_fte_per_year = working_days_per_year * 8  # 1,880 hours
+    total_working_days = (weeks_per_year * days_per_week) - holiday_sick_days
+    working_hours_per_fte_per_year = total_working_days * hours_per_day
     total_available_fte_hours = incident_ftes * working_hours_per_fte_per_year
     
     fte_time_percentage_on_incidents = total_incident_time_hours_per_year / total_available_fte_hours if total_available_fte_hours > 0 else 0
@@ -321,16 +363,18 @@ def calculate_incident_costs(incident_volume, incident_ftes, avg_incident_triage
     total_incident_handling_cost = total_fte_cost * fte_time_percentage_on_incidents
     cost_per_incident = total_incident_handling_cost / incident_volume if incident_volume > 0 else 0
     
-    return cost_per_incident, total_incident_handling_cost, fte_time_percentage_on_incidents
+    return cost_per_incident, total_incident_handling_cost, fte_time_percentage_on_incidents, working_hours_per_fte_per_year
 
-# Calculate alert costs using the corrected method
-cost_per_alert, total_alert_handling_cost, alert_fte_percentage = calculate_alert_costs(
-    alert_volume, alert_ftes, avg_alert_triage_time, avg_alert_fte_salary
+# Calculate alert costs using the corrected method with configurable working hours
+cost_per_alert, total_alert_handling_cost, alert_fte_percentage, alert_working_hours = calculate_alert_costs(
+    alert_volume, alert_ftes, avg_alert_triage_time, avg_alert_fte_salary,
+    hours_per_day, days_per_week, weeks_per_year, holiday_sick_days
 )
 
-# Calculate incident costs using the corrected method
-cost_per_incident, total_incident_handling_cost, incident_fte_percentage = calculate_incident_costs(
-    incident_volume, incident_ftes, avg_incident_triage_time, avg_incident_fte_salary
+# Calculate incident costs using the corrected method with configurable working hours
+cost_per_incident, total_incident_handling_cost, incident_fte_percentage, incident_working_hours = calculate_incident_costs(
+    incident_volume, incident_ftes, avg_incident_triage_time, avg_incident_fte_salary,
+    hours_per_day, days_per_week, weeks_per_year, holiday_sick_days
 )
 
 # Calculate savings
@@ -603,6 +647,22 @@ avg_annual_net_benefit = total_net_benefits / evaluation_years
 # --- Layout ---
 st.title("Business Value Assessment")
 
+# --- Working Hours Summary ---
+st.subheader("⏰ Working Hours Configuration")
+col_wh1, col_wh2, col_wh3, col_wh4 = st.columns(4)
+
+with col_wh1:
+    st.metric("Hours/Day", f"{hours_per_day}")
+
+with col_wh2:
+    st.metric("Days/Week", f"{days_per_week}")
+
+with col_wh3:
+    st.metric("Holiday/Sick Days", f"{holiday_sick_days}")
+
+with col_wh4:
+    st.metric("Total Hours/FTE/Year", f"{working_hours_per_fte_per_year:,.0f}")
+
 # Timeline visualization with interactive chart
 st.subheader("📅 Implementation Timeline & Benefit Realization")
 
@@ -720,6 +780,13 @@ The implementation delay is factored into all calculations, providing a realisti
 
 # --- Show Calculation Details ---
 with st.expander("Show Calculation Details"):
+    st.markdown("### Working Hours Configuration")
+    st.write(f"Hours per day: {hours_per_day}")
+    st.write(f"Days per week: {days_per_week}")
+    st.write(f"Weeks per year: {weeks_per_year}")
+    st.write(f"Holiday/sick days: {holiday_sick_days}")
+    st.write(f"**Total working hours per FTE per year: {working_hours_per_fte_per_year:,.0f} hours**")
+    
     st.markdown("### Implementation Timeline Impact")
     st.write(f"Implementation Delay: {implementation_delay_months} months")
     st.write(f"Benefits Ramp-up Period: {benefits_ramp_up_months} months")
@@ -727,38 +794,46 @@ with st.expander("Show Calculation Details"):
     
     st.markdown("### Cost Per Alert/Incident Calculations")
     if alert_volume > 0 and alert_ftes > 0:
+        alert_total_time_hours = (alert_volume * avg_alert_triage_time) / 60
+        alert_available_hours = alert_ftes * working_hours_per_fte_per_year
         st.write(f"**Alert Management:**")
-        st.write(f"- Total Alert Time per Year: {alert_volume:,} × {avg_alert_triage_time} min = {alert_volume * avg_alert_triage_time:,} minutes = {(alert_volume * avg_alert_triage_time)/60:,.0f} hours")
-        st.write(f"- Available FTE Hours: {alert_ftes} FTEs × 1,880 hours = {alert_ftes * 1880:,} hours")
+        st.write(f"- Total Alert Time per Year: {alert_volume:,} × {avg_alert_triage_time} min = {alert_volume * avg_alert_triage_time:,} minutes = {alert_total_time_hours:,.0f} hours")
+        st.write(f"- Available FTE Hours: {alert_ftes} FTEs × {working_hours_per_fte_per_year:,.0f} hours = {alert_available_hours:,} hours")
         st.write(f"- FTE Time on Alerts: {alert_fte_percentage*100:.1f}%")
-        st.write(f"- Cost per Alert: {currency_symbol}{cost_per_alert:.2f}")
-        st.write(f"- Total Alert Handling Cost: {currency_symbol}{total_alert_handling_cost:,.0f}")
+        st.write(f"- Total FTE Cost: {alert_ftes} × {currency_symbol}{avg_alert_fte_salary:,} = {currency_symbol}{alert_ftes * avg_alert_fte_salary:,}")
+        st.write(f"- Total Alert Handling Cost: {currency_symbol}{alert_ftes * avg_alert_fte_salary:,} × {alert_fte_percentage*100:.1f}% = {currency_symbol}{total_alert_handling_cost:,.0f}")
+        st.write(f"- **Cost per Alert: {currency_symbol}{cost_per_alert:.2f}**")
     
     if incident_volume > 0 and incident_ftes > 0:
+        incident_total_time_hours = (incident_volume * avg_incident_triage_time) / 60
+        incident_available_hours = incident_ftes * working_hours_per_fte_per_year
         st.write(f"**Incident Management:**")
-        st.write(f"- Total Incident Time per Year: {incident_volume:,} × {avg_incident_triage_time} min = {incident_volume * avg_incident_triage_time:,} minutes = {(incident_volume * avg_incident_triage_time)/60:,.0f} hours")
-        st.write(f"- Available FTE Hours: {incident_ftes} FTEs × 1,880 hours = {incident_ftes * 1880:,} hours")
+        st.write(f"- Total Incident Time per Year: {incident_volume:,} × {avg_incident_triage_time} min = {incident_volume * avg_incident_triage_time:,} minutes = {incident_total_time_hours:,.0f} hours")
+        st.write(f"- Available FTE Hours: {incident_ftes} FTEs × {working_hours_per_fte_per_year:,.0f} hours = {incident_available_hours:,} hours")
         st.write(f"- FTE Time on Incidents: {incident_fte_percentage*100:.1f}%")
-        st.write(f"- Cost per Incident: {currency_symbol}{cost_per_incident:.2f}")
-        st.write(f"- Total Incident Handling Cost: {currency_symbol}{total_incident_handling_cost:,.0f}")
+        st.write(f"- Total FTE Cost: {incident_ftes} × {currency_symbol}{avg_incident_fte_salary:,} = {currency_symbol}{incident_ftes * avg_incident_fte_salary:,}")
+        st.write(f"- Total Incident Handling Cost: {currency_symbol}{incident_ftes * avg_incident_fte_salary:,} × {incident_fte_percentage*100:.1f}% = {currency_symbol}{total_incident_handling_cost:,.0f}")
+        st.write(f"- **Cost per Incident: {currency_symbol}{cost_per_incident:.2f}**")
     
     st.markdown("### Annual Benefits Calculations (at Full Realization)")
     st.markdown("#### Alerts")
     st.write(f"Avoided Alerts: {avoided_alerts:,.0f}")
-    st.write(f"Alert Reduction Savings = Avoided Alerts × Cost per Alert = {currency_symbol}{alert_reduction_savings:,.2f}")
+    st.write(f"Alert Reduction Savings = Avoided Alerts × Cost per Alert = {avoided_alerts:,.0f} × {currency_symbol}{cost_per_alert:.2f} = {currency_symbol}{alert_reduction_savings:,.2f}")
     st.write(f"Remaining Alerts: {remaining_alerts:,.0f}")
-    st.write(f"Alert Triage Savings = Remaining Alert Cost × % Time Saved = {currency_symbol}{alert_triage_savings:,.2f}")
+    st.write(f"Remaining Alert Handling Cost = {remaining_alerts:,.0f} × {currency_symbol}{cost_per_alert:.2f} = {currency_symbol}{remaining_alert_handling_cost:,.2f}")
+    st.write(f"Alert Triage Savings = Remaining Alert Cost × % Time Saved = {currency_symbol}{remaining_alert_handling_cost:,.2f} × {alert_triage_time_saved_pct}% = {currency_symbol}{alert_triage_savings:,.2f}")
 
     st.markdown("#### Incidents")
     st.write(f"Avoided Incidents: {avoided_incidents:,.0f}")
-    st.write(f"Incident Reduction Savings = Avoided Incidents × Cost per Incident = {currency_symbol}{incident_reduction_savings:,.2f}")
+    st.write(f"Incident Reduction Savings = Avoided Incidents × Cost per Incident = {avoided_incidents:,.0f} × {currency_symbol}{cost_per_incident:.2f} = {currency_symbol}{incident_reduction_savings:,.2f}")
     st.write(f"Remaining Incidents: {remaining_incidents:,.0f}")
-    st.write(f"Incident Triage Savings = Remaining Incident Cost × % Time Saved = {currency_symbol}{incident_triage_savings:,.2f}")
+    st.write(f"Remaining Incident Handling Cost = {remaining_incidents:,.0f} × {currency_symbol}{cost_per_incident:.2f} = {currency_symbol}{remaining_incident_handling_cost:,.2f}")
+    st.write(f"Incident Triage Savings = Remaining Incident Cost × % Time Saved = {currency_symbol}{remaining_incident_handling_cost:,.2f} × {incident_triage_time_savings_pct}% = {currency_symbol}{incident_triage_savings:,.2f}")
 
     st.markdown("#### Major Incidents")
     st.write(f"MTTR Hours Saved per Incident: {mttr_hours_saved_per_incident:,.2f}")
-    st.write(f"Total MTTR Hours Saved = Volume × Hours Saved/Incident = {total_mttr_hours_saved:,.2f}")
-    st.write(f"Major Incident Savings = Total MTTR Hours Saved × Cost/hr = {currency_symbol}{major_incident_savings:,.2f}")
+    st.write(f"Total MTTR Hours Saved = Volume × Hours Saved/Incident = {major_incident_volume} × {mttr_hours_saved_per_incident:,.2f} = {total_mttr_hours_saved:,.2f}")
+    st.write(f"Major Incident Savings = Total MTTR Hours Saved × Cost/hr = {total_mttr_hours_saved:,.2f} × {currency_symbol}{avg_major_incident_cost:,} = {currency_symbol}{major_incident_savings:,.2f}")
 
     st.markdown("#### Other Benefits")
     st.write(f"Tool Consolidation: {currency_symbol}{tool_savings:,.2f}")
@@ -849,7 +924,17 @@ benefit_breakdown_df = pd.DataFrame(benefit_breakdown)
 # Create combined CSV for export
 combined_export_data = []
 
+# Add working hours configuration
+combined_export_data.append(["=== WORKING HOURS CONFIGURATION ==="])
+combined_export_data.append(["Parameter", "Value"])
+combined_export_data.append(["Hours per Day", hours_per_day])
+combined_export_data.append(["Days per Week", days_per_week])
+combined_export_data.append(["Weeks per Year", weeks_per_year])
+combined_export_data.append(["Holiday/Sick Days", holiday_sick_days])
+combined_export_data.append(["Total Working Hours per FTE per Year", working_hours_per_fte_per_year])
+
 # Add cash flow data
+combined_export_data.append([])
 combined_export_data.append(["=== CASH FLOW ANALYSIS ==="])
 combined_export_data.append(["Year", "Benefits_Realization_Pct", "Benefits", "Platform_Cost", "Services_Cost", "Net_Cash_Flow"])
 for cf in annual_cash_flows:
