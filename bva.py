@@ -169,7 +169,7 @@ major_incident_volume = st.sidebar.number_input(
     key="major_incident_volume"
 )
 avg_major_incident_cost = st.sidebar.number_input(
-    "Average Major Incident Cost per Hour", 
+    "Average Major Incident Cost per Hour to the Customer (Downtime)", 
     value=0,
     key="avg_major_incident_cost"
 )
