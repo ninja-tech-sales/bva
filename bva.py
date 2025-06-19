@@ -1,5 +1,5 @@
 # Developed by N.A.Pearson, HPE OpsRamp
-# v1.5 - June 2025 - Added Executive Report Generator with PDF/HTML Export
+# v1.6 - June 2025 - Added Export/Import Configuration functionality
 
 import streamlit as st
 import numpy as np
@@ -8,6 +8,9 @@ import plotly.graph_objects as go
 import plotly.express as px
 import io
 from datetime import datetime
+import csv
+from io import StringIO
+import json
 
 # Executive Report Dependencies
 try:
@@ -25,6 +28,286 @@ except ImportError:
 
 # Set page configuration
 st.set_page_config(page_title="Business Value Assessment Tool", layout="wide")
+
+# --- EXPORT/IMPORT FUNCTIONS ---
+
+def get_all_input_values():
+    """Collect all input values from the current session state"""
+    input_values = {}
+    
+    # Get all the input keys from your existing inputs
+    input_keys = [
+        # Basic Configuration
+        'solution_name', 'industry_template', 'currency', 
+        
+        # Implementation Timeline
+        'implementation_delay', 'benefits_ramp_up',
+        
+        # Working Hours Configuration
+        'hours_per_day', 'days_per_week', 'weeks_per_year', 'holiday_sick_days',
+        
+        # Alert Management
+        'alert_volume', 'alert_ftes', 'avg_alert_triage_time', 'avg_alert_fte_salary',
+        'alert_reduction_pct', 'alert_triage_time_saved_pct',
+        
+        # Incident Management
+        'incident_volume', 'incident_ftes', 'avg_incident_triage_time', 'avg_incident_fte_salary',
+        'incident_reduction_pct', 'incident_triage_time_savings_pct',
+        
+        # Major Incidents
+        'major_incident_volume', 'avg_major_incident_cost', 'avg_mttr_hours', 'mttr_improvement_pct',
+        
+        # Additional Benefits
+        'tool_savings', 'people_efficiency', 'fte_avoidance', 'sla_penalty', 
+        'revenue_growth', 'capex_savings', 'opex_savings',
+        
+        # Costs
+        'platform_cost', 'services_cost',
+        
+        # Financial Settings
+        'evaluation_years', 'discount_rate'
+    ]
+    
+    # Collect values from session state
+    for key in input_keys:
+        if key in st.session_state:
+            input_values[key] = st.session_state[key]
+        else:
+            # Fallback to default values if not in session state
+            input_values[key] = get_default_value(key)
+    
+    return input_values
+
+def get_default_value(key):
+    """Get default values for inputs"""
+    defaults = {
+        'solution_name': 'AIOPs',
+        'industry_template': 'Custom',
+        'currency': '$',
+        'implementation_delay': 6,
+        'benefits_ramp_up': 3,
+        'hours_per_day': 8.0,
+        'days_per_week': 5,
+        'weeks_per_year': 52,
+        'holiday_sick_days': 25,
+        'alert_volume': 0,
+        'alert_ftes': 0,
+        'avg_alert_triage_time': 0,
+        'avg_alert_fte_salary': 50000,
+        'alert_reduction_pct': 0,
+        'alert_triage_time_saved_pct': 0,
+        'incident_volume': 0,
+        'incident_ftes': 0,
+        'avg_incident_triage_time': 0,
+        'avg_incident_fte_salary': 50000,
+        'incident_reduction_pct': 0,
+        'incident_triage_time_savings_pct': 0,
+        'major_incident_volume': 0,
+        'avg_major_incident_cost': 0,
+        'avg_mttr_hours': 0.0,
+        'mttr_improvement_pct': 0,
+        'tool_savings': 0,
+        'people_efficiency': 0,
+        'fte_avoidance': 0,
+        'sla_penalty': 0,
+        'revenue_growth': 0,
+        'capex_savings': 0,
+        'opex_savings': 0,
+        'platform_cost': 0,
+        'services_cost': 0,
+        'evaluation_years': 3,
+        'discount_rate': 10
+    }
+    return defaults.get(key, 0)
+
+def export_to_csv(input_values):
+    """Export input values to CSV format"""
+    output = StringIO()
+    writer = csv.writer(output)
+    
+    # Write header
+    writer.writerow(['Parameter', 'Value', 'Description'])
+    
+    # Define parameter descriptions for better readability
+    descriptions = {
+        'solution_name': 'Solution Name',
+        'industry_template': 'Industry Template',
+        'currency': 'Currency Symbol',
+        'implementation_delay': 'Implementation Delay (months)',
+        'benefits_ramp_up': 'Benefits Ramp-up Period (months)',
+        'hours_per_day': 'Working Hours per Day',
+        'days_per_week': 'Working Days per Week',
+        'weeks_per_year': 'Working Weeks per Year',
+        'holiday_sick_days': 'Holiday + Sick Days per Year',
+        'alert_volume': 'Total Infrastructure Related Alerts per Year',
+        'alert_ftes': 'Total FTEs Managing Infrastructure Alerts',
+        'avg_alert_triage_time': 'Average Alert Triage Time (minutes)',
+        'avg_alert_fte_salary': 'Average Annual Salary per Alert Management FTE',
+        'alert_reduction_pct': '% Alert Reduction',
+        'alert_triage_time_saved_pct': '% Alert Triage Time Reduction',
+        'incident_volume': 'Total Infrastructure Related Incident Volumes per Year',
+        'incident_ftes': 'Total FTEs Managing Infrastructure Incidents',
+        'avg_incident_triage_time': 'Average Incident Triage Time (minutes)',
+        'avg_incident_fte_salary': 'Average Annual Salary per Incident Management FTE',
+        'incident_reduction_pct': '% Incident Reduction',
+        'incident_triage_time_savings_pct': '% Incident Triage Time Reduction',
+        'major_incident_volume': 'Total Infrastructure Related Major Incidents per Year (Sev1)',
+        'avg_major_incident_cost': 'Average Major Incident Cost per Hour',
+        'avg_mttr_hours': 'Average MTTR (hours)',
+        'mttr_improvement_pct': 'MTTR Improvement Percentage',
+        'tool_savings': 'Tool Consolidation Savings',
+        'people_efficiency': 'People Efficiency Gains',
+        'fte_avoidance': 'FTE Avoidance (annualized value)',
+        'sla_penalty': 'SLA Penalty Avoidance',
+        'revenue_growth': 'Revenue Growth',
+        'capex_savings': 'Capital Expenditure Savings',
+        'opex_savings': 'Operational Expenditure Savings',
+        'platform_cost': 'Annual Subscription Cost',
+        'services_cost': 'Implementation & Services (One-Time)',
+        'evaluation_years': 'Evaluation Period (Years)',
+        'discount_rate': 'NPV Discount Rate (%)'
+    }
+    
+    # Write data rows
+    for key, value in input_values.items():
+        description = descriptions.get(key, key.replace('_', ' ').title())
+        writer.writerow([key, value, description])
+    
+    return output.getvalue()
+
+def import_from_csv(csv_content):
+    """Import input values from CSV content and update session state"""
+    try:
+        # Parse CSV content
+        reader = csv.DictReader(StringIO(csv_content))
+        imported_values = {}
+        
+        for row in reader:
+            key = row['Parameter']
+            value = row['Value']
+            
+            # Convert value to appropriate type
+            try:
+                # Try to convert to number first
+                if '.' in str(value):
+                    value = float(value)
+                else:
+                    value = int(value)
+            except (ValueError, TypeError):
+                # Keep as string if not a number
+                value = str(value)
+            
+            imported_values[key] = value
+        
+        # Update session state with imported values
+        for key, value in imported_values.items():
+            st.session_state[key] = value
+        
+        return True, f"Successfully imported {len(imported_values)} parameters"
+    
+    except Exception as e:
+        return False, f"Error importing CSV: {str(e)}"
+
+def export_to_json(input_values):
+    """Export input values to JSON format"""
+    # Add metadata
+    export_data = {
+        'metadata': {
+            'export_date': datetime.now().isoformat(),
+            'version': '1.6',
+            'tool': 'BVA Business Value Assessment'
+        },
+        'configuration': input_values
+    }
+    return json.dumps(export_data, indent=2)
+
+def import_from_json(json_content):
+    """Import input values from JSON content and update session state"""
+    try:
+        data = json.loads(json_content)
+        
+        # Extract configuration data
+        if 'configuration' in data:
+            imported_values = data['configuration']
+        else:
+            # Assume the entire JSON is the configuration
+            imported_values = data
+        
+        # Update session state with imported values
+        for key, value in imported_values.items():
+            st.session_state[key] = value
+        
+        return True, f"Successfully imported {len(imported_values)} parameters"
+    
+    except Exception as e:
+        return False, f"Error importing JSON: {str(e)}"
+
+# --- Sidebar Export/Import Section ---
+st.sidebar.header("🔄 Configuration Export/Import")
+
+# Export Section
+with st.sidebar.expander("📤 Export Configuration"):
+    st.write("Export your current configuration to save or share with others.")
+    
+    export_format = st.selectbox("Export Format", ["CSV", "JSON"], key="export_format")
+    
+    if st.button("Generate Export File"):
+        current_values = get_all_input_values()
+        
+        if export_format == "CSV":
+            export_data = export_to_csv(current_values)
+            file_extension = "csv"
+            mime_type = "text/csv"
+        else:  # JSON
+            export_data = export_to_json(current_values)
+            file_extension = "json"
+            mime_type = "application/json"
+        
+        # Generate filename with timestamp
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        filename = f"BVA_Config_{timestamp}.{file_extension}"
+        
+        st.download_button(
+            label=f"Download {export_format} Configuration",
+            data=export_data,
+            file_name=filename,
+            mime=mime_type
+        )
+
+# Import Section
+with st.sidebar.expander("📥 Import Configuration"):
+    st.write("Import a previously saved configuration.")
+    
+    uploaded_file = st.file_uploader(
+        "Choose configuration file",
+        type=['csv', 'json'],
+        help="Upload a CSV or JSON configuration file"
+    )
+    
+    if uploaded_file is not None:
+        try:
+            # Read file content
+            file_content = uploaded_file.read().decode('utf-8')
+            file_extension = uploaded_file.name.split('.')[-1].lower()
+            
+            if st.button("Import Configuration"):
+                if file_extension == 'csv':
+                    success, message = import_from_csv(file_content)
+                elif file_extension == 'json':
+                    success, message = import_from_json(file_content)
+                else:
+                    success, message = False, "Unsupported file format"
+                
+                if success:
+                    st.success(message)
+                    st.info("Please scroll down to see the imported values. You may need to refresh the page to see all changes.")
+                else:
+                    st.error(message)
+        
+        except Exception as e:
+            st.error(f"Error reading file: {str(e)}")
+
+st.sidebar.markdown("---")
 
 # --- Sidebar Inputs ---
 st.sidebar.header("Customize Your Financial Impact Model Inputs")
@@ -1212,12 +1495,10 @@ if REPORT_DEPENDENCIES_AVAILABLE:
                 st.download_button(
                     label="Download PDF Report",
                     data=pdf_buffer,
-                    file_name=f"{organization_name}_{solution_name}_BVA_Report.pdf",
+                    file_name=f"{org_name_for_report}_{solution_name}_BVA_Report.pdf",
                     mime="application/pdf"
                 )
             else:
                 st.error("Failed to generate PDF report. Please check if reportlab dependencies are installed correctly.")
 else:
     st.warning("To generate PDF reports, please install `reportlab` and `matplotlib` (`pip install reportlab matplotlib`).")
-
-
