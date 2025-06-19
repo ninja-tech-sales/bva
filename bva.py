@@ -932,7 +932,9 @@ def create_executive_summary_data(scenario_results, currency_symbol):
         },
         'key_benefits': {
             'alert_reduction_savings': alert_reduction_savings,
+            'alert_triage_savings': alert_triage_savings,
             'incident_reduction_savings': incident_reduction_savings,
+            'incident_triage_savings': incident_triage_savings,
             'major_incident_savings': major_incident_savings,
             'total_operational_savings': alert_reduction_savings + alert_triage_savings + incident_reduction_savings + incident_triage_savings + major_incident_savings,
             'additional_benefits': tool_savings + people_cost_per_year + fte_avoidance + revenue_growth
@@ -1502,3 +1504,4 @@ if REPORT_DEPENDENCIES_AVAILABLE:
                 st.error("Failed to generate PDF report. Please check if reportlab dependencies are installed correctly.")
 else:
     st.warning("To generate PDF reports, please install `reportlab` and `matplotlib` (`pip install reportlab matplotlib`).")
+
