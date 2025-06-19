@@ -1485,7 +1485,7 @@ st.markdown("---")
 st.header("Generate Executive Report")
 
 if REPORT_DEPENDENCIES_AVAILABLE:
-    st.write("Generate a professional PDF or HTML executive summary of this Business Value Assessment.")
+    st.write("Generate a professional PDF executive summary of this Business Value Assessment.")
     
     org_name_for_report = st.text_input("Your Organization Name (for report)", value="My Company", key="org_name_report")
 
