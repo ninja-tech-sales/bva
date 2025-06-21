@@ -1,4 +1,3 @@
-# Developed by N.A.Pearson, HPE OpsRamp
 # v1.6 - June 2025 - Added Export/Import Configuration functionality
 
 import streamlit as st
