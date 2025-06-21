@@ -7,10 +7,10 @@ the business value and ROI of implementing AIOPs & Observability solutions.
 
 It provides:
 
-Financial Impact Analysis: NPV, ROI, and payback calculations
-Scenario Modeling: Conservative, Expected, and Optimistic scenarios
-Stakeholder Reports: Tailored value propositions for different roles
-Executive Summaries: Professional PDF reports for decision-makers
+1. Financial Impact Analysis: NPV, ROI, and payback calculations
+2. Scenario Modeling: Conservative, Expected, and Optimistic scenarios
+3. Stakeholder Reports: Tailored value propositions for different roles
+4. Executive Summaries: Professional PDF reports for decision-makers
 
 Key Benefits
 
